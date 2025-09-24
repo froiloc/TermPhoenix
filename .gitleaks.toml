@@ -1,0 +1,18 @@
+title = "TermPhoenix Gitleaks Configuration"
+
+[[rules]]
+description = "AWS Access Key ID"
+id = "aws-access-key-id"
+regex = '''(A3T[A-Z0-9]|AKIA|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)[A-Z0-9]{16}'''
+tags = ["key", "AWS"]
+
+[[rules]]
+description = "SSH private key"
+id = "ssh-private-key"
+regex = '''-----BEGIN OPENSSH PRIVATE KEY-----'''
+tags = ["key", "SSH"]
+
+# Allow these in test files
+[[allowlist]]
+files = ['''\.py''']
+regexes = ['test.*key', 'example.*key', 'mock.*key']

@@ -1,0 +1,62 @@
+#!/bin/bash
+
+# TermPhoenix Git Pre-push Hook
+# Prevents pushing if tests fail
+
+set -e
+
+echo "🐦 TermPhoenix pre-push checks starting..."
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+print_status() { echo -e "${YELLOW}[PRE-PUSH]${NC} $1"; }
+print_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
+print_error() { echo -e "${RED}[ERROR]${NC} $1"; }
+
+# Check if we're in a TermPhoenix project
+if [ ! -f "pyproject.toml" ] || ! grep -q "termphoenix" "pyproject.toml" 2>/dev/null; then
+    echo "Not in TermPhoenix project, skipping hooks."
+    exit 0
+fi
+
+# Check if virtual environment exists and activate it
+if [ -d "venv" ]; then
+    source venv/bin/activate
+    print_status "Virtual environment activated"
+else
+    print_error "Virtual environment not found. Run './run-dev.sh setup' first."
+    exit 1
+fi
+
+# Run tests
+print_status "Running test suite..."
+if ! python -m pytest tests/ -x --tb=short --disable-warnings; then
+    print_error "Tests failed! Please fix before pushing."
+    echo ""
+    echo "To run tests manually: ./run-dev.sh test"
+    echo "To skip hooks (not recommended): git push --no-verify"
+    exit 1
+fi
+
+# Check code formatting
+print_status "Checking code formatting..."
+if ! black --check src/ tests/; then
+    print_error "Code formatting issues detected!"
+    echo ""
+    echo "Please run: black src/ tests/"
+    echo "Or: ./run-dev.sh lint"
+    exit 1
+fi
+
+# Basic linting check
+print_status "Running basic linting..."
+if ! flake8 src/ tests/ --count --exit-zero; then
+    print_warning "Linting issues found (not blocking, but please check)"
+fi
+
+print_success "All pre-push checks passed! Pushing to repository..."
+exit 0
