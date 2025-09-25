@@ -13,6 +13,16 @@ regex = '''-----BEGIN OPENSSH PRIVATE KEY-----'''
 tags = ["key", "SSH"]
 
 # Allow these in test files
-[[allowlist]]
-files = ['''\.py''']
-regexes = ['test.*key', 'example.*key', 'mock.*key']
+[allowlist]
+description = "Paths and patterns to ignore"
+paths = [
+    "package-lock.json",
+    "yarn.lock",
+    "**/testdata/**"
+]
+regexes = [
+    ".*//gitleaks:allow.*", # This allows inline comments to ignore a line
+]
+commits = [
+    "commit-hash-to-ignore"
+]
