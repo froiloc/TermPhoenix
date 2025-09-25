@@ -134,6 +134,8 @@ class DatabaseManager:
     def _set_project_metadata(self):
         """Set initial project metadata."""
         try:
+            if self.connection is None:
+                raise RuntimeError("Database conneciton is not established")
             cursor = self.connection.cursor()
             cursor.execute(
                 "INSERT INTO project_metadata (key, value) VALUES (?, ?)",
@@ -162,6 +164,8 @@ class DatabaseManager:
             session_id of the newly created session
         """
         try:
+            if self.connection is None:
+                raise RuntimeError("Database conneciton is not established")
             cursor = self.connection.cursor()
             cursor.execute(
                 """
@@ -173,16 +177,20 @@ class DatabaseManager:
             )
 
             session_id = cursor.lastrowid
-            self.connection.commit()
+            if session_id is None:
+                raise DatabaseError("Failed to get session ID after insertion")
 
+            self.connection.commit()
             logger.info(f"Created crawl session {session_id} for {root_url}")
             return session_id
 
         except Exception as e:
+            if self.connection is None:
+                raise RuntimeError("Database conneciton is not established")
             self.connection.rollback()
             raise DatabaseError(f"Failed to create crawl session: {e}")
 
-    def get_or_create_website(self, domain: str, base_url: str = None) -> int:
+    def get_or_create_website(self, domain: str, base_url: str = "") -> int:
         """
         Get existing website ID or create new one.
 
@@ -194,6 +202,8 @@ class DatabaseManager:
             website_id
         """
         try:
+            if self.connection is None:
+                raise RuntimeError("Database conneciton is not established")
             cursor = self.connection.cursor()
 
             # Check if website exists
@@ -233,6 +243,8 @@ class DatabaseManager:
             return website_id
 
         except Exception as e:
+            if self.connection is None:
+                raise RuntimeError("Database conneciton is not established")
             self.connection.rollback()
             raise DatabaseError(f"Failed to get or create website: {e}")
 
@@ -261,6 +273,8 @@ class DatabaseManager:
         """
         try:
             url_hash = self.url_to_hash(url)
+            if self.connection is None:
+                raise RuntimeError("Database conneciton is not established")
             cursor = self.connection.cursor()
             cursor.execute(
                 "SELECT page_id FROM pages WHERE url_hash = ?", (url_hash,)
