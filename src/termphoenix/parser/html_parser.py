@@ -8,7 +8,7 @@ import logging
 from typing import List, Set, Optional
 from urllib.parse import urljoin, urlparse
 
-from bs4 import BeautifulSoup, Tag, Comment
+from bs4 import BeautifulSoup, Tag, Comment, NavigableString
 from bs4.element import PageElement
 
 from .models import ParsedPage, TextToken, LinkInfo, EmphasisType
@@ -152,17 +152,57 @@ class HTMLParser:
     def _extract_meta_description(self, soup: BeautifulSoup) -> Optional[str]:
         """Extract meta description."""
         meta_desc = soup.find("meta", attrs={"name": "description"})
-        if meta_desc and meta_desc.get("content"):
-            return meta_desc["content"].strip()
+
+        if isinstance(meta_desc, Tag):
+            content = meta_desc.get("content")
+            if content:
+                if isinstance(content, str):
+                    # Single string value
+                    return content.strip()
+                elif hasattr(content, "__iter__"):
+                    # Handle list-like attributes (join them)
+                    return " ".join(str(item) for item in content).strip()
+
         return None
 
     def _extract_image_alt_texts(self, soup: BeautifulSoup) -> List[str]:
         """Extract alt text from images."""
         alt_texts = []
+
+        # Only process Tag objects (which have .get() method)
         for img in soup.find_all("img"):
-            alt = img.get("alt", "").strip()
-            if alt:
-                alt_texts.append(alt)
+            if not isinstance(img, Tag):
+                continue  # Skip non-Tag elements
+
+            # Get the alt attribute - it could be various types
+            alt_value = img.get("alt")
+
+            # Handle different possible types
+            if alt_value is None:
+                continue  # No alt attribute
+
+            if isinstance(alt_value, str):
+                # It's a string - strip and use if not empty
+                alt = alt_value.strip()
+                if alt:
+                    alt_texts.append(alt)
+            elif hasattr(alt_value, "__iter__") and not isinstance(
+                alt_value, str
+            ):
+                # It's a list-like object (AttributeValueList) - join elements
+                # Filter out None values and convert to strings
+                alt_parts = [
+                    str(item).strip() for item in alt_value if item is not None
+                ]
+                alt = " ".join(alt_parts).strip()
+                if alt:
+                    alt_texts.append(alt)
+            else:
+                # Fallback for any other type
+                alt = str(alt_value).strip()
+                if alt:
+                    alt_texts.append(alt)
+
         return alt_texts
 
     def _extract_links(
@@ -173,10 +213,29 @@ class HTMLParser:
         base_domain = urlparse(base_url).netloc
 
         for a_tag in soup.find_all("a", href=True):
-            href = a_tag["href"]
+            if not isinstance(a_tag, Tag):
+                continue
+
+            # Fix: Handle different return types from a_tag["href"]
+            href_value = a_tag["href"]
+
+            # Convert href to string, handling different types
+            if isinstance(href_value, str):
+                href = href_value
+            elif isinstance(href_value, list) and href_value:
+                # If it's a list, take the first element
+                href = str(href_value[0])
+            else:
+                # Fallback for any other type
+                href = str(href_value) if href_value is not None else ""
+
+            # Skip if href is empty
+            if not href:
+                continue
+
             link_text = a_tag.get_text().strip()
 
-            # Make URL absolute
+            # Make URL absolute - now href is guaranteed to be a string
             absolute_url = urljoin(base_url, href)
 
             # Determine if internal link
@@ -188,7 +247,7 @@ class HTMLParser:
 
             links.append(
                 LinkInfo(
-                    url=absolute_url,
+                    url=absolute_url,  # Now definitely a string
                     text=link_text,
                     is_internal=is_internal,
                     emphasis=emphasis,
@@ -210,8 +269,27 @@ class HTMLParser:
         text_nodes = soup.find_all(string=True)
 
         for node in text_nodes:
-            # Skip empty strings and strings with only whitespace
-            text = node.string.strip()
+            # Fix: Handle different element types and None values
+            text_content = None
+
+            if isinstance(node, NavigableString):
+                # This is a direct text node
+                text_content = str(node)
+            elif isinstance(node, Tag) and node.string is not None:
+                # This is a tag with a single string content
+                text_content = node.string
+            else:
+                # For other cases, try to get text content
+                text_content = (
+                    node.get_text() if hasattr(node, "get_text") else str(node)
+                )
+
+            # Skip if we have no text content
+            if not text_content:
+                continue
+
+            # Now safely strip the text (it's guaranteed to be a string)
+            text = text_content.strip()
             if not text:
                 continue
 
@@ -277,12 +355,12 @@ class HTMLParser:
     def _get_element_emphasis(self, element: Tag) -> Set[EmphasisType]:
         """Get emphasis information for an HTML element."""
         emphasis = set()
-        current = element
+        current: Optional[Tag] = element  # Fix: Allow current to be None
 
         while current and current.name:
             if current.name in self.EMPHASIS_TAGS:
                 emphasis.add(self.EMPHASIS_TAGS[current.name])
-            current = current.parent
+            current = current.parent  # Now safe because current can be None
 
         return emphasis
 

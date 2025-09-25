@@ -81,6 +81,12 @@ run_tests() {
     python -m pytest tests/ -v --cov=src/termphoenix --cov-report=html
 }
 
+run_tests_coverage() {
+    print_status "Running tests..."
+    source $VENV_DIR/bin/activate
+    python -m pytest tests/ -v --cov=src/termphoenix --cov-report=term-missing
+}
+
 run_linting() {
     print_status "Running code formatting and linting..."
     source $VENV_DIR/bin/activate
@@ -131,7 +137,9 @@ show_help() {
     echo "Commands:"
     echo "  setup       Set up the development environment"
     echo "  test        Run the test suite"
+    echo "  test-cov    Run the test suite and return the missing test coverage."
     echo "  lint        Format and lint the code"
+    echo "  git-hooks   Install the git hooks"
     echo "  run         Run the application (pass arguments after 'run')"
     echo "  clean       Clean up the development environment"
     echo "  all         Run setup, lint, and test"
@@ -150,6 +158,9 @@ case "$1" in
         ;;
     "test")
         run_tests
+        ;;
+    "test-cov")
+        run_tests_coverage
         ;;
     "lint")
         run_linting
