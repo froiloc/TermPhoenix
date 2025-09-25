@@ -18,7 +18,7 @@ description = "Paths and patterns to ignore"
 paths = [
     "package-lock.json",
     "yarn.lock",
-    "**/testdata/**"
+    ".*testdata.*"
 ]
 regexes = [
     ".*//gitleaks:allow.*", # This allows inline comments to ignore a line
