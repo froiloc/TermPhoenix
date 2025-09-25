@@ -47,5 +47,5 @@ Repository = "https://github.com/froiloc/TermPhoenix"
 termphoenix = "termphoenix.main:main"
 
 [tool.black]
-line-length = 88
+line-length = 79
 target-version = ['py312']
