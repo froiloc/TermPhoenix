@@ -121,3 +121,69 @@ class TestDatabaseManagerComprehensive:
         cursor.execute("PRAGMA foreign_keys")
         result = cursor.fetchone()
         assert result[0] == 1  # Foreign keys should be enabled
+
+    def test_page_exists_scenarios(self, db_manager):
+        """Test page existence checking in various scenarios."""
+        # Test with non-existent page
+        assert not db_manager.page_exists("http://example.com/new-page")
+
+        # Add a page and test existence
+        session_id = db_manager.create_crawl_session("http://example.com", {})
+        website_id = db_manager.get_or_create_website("example.com")
+
+        # Use the new save_page method
+        page_id = db_manager.save_page(
+            session_id,
+            website_id,
+            "http://example.com/page",
+            "<html><body>Test content</body></html>",
+        )
+
+        assert db_manager.page_exists("http://example.com/page")
+        assert isinstance(page_id, int)
+        assert page_id > 0
+
+    def test_save_page_functionality(self, db_manager):
+        """Test the save_page method comprehensively."""
+        session_id = db_manager.create_crawl_session("http://example.com", {})
+        website_id = db_manager.get_or_create_website("example.com")
+
+        # Test saving a new page
+        test_html = """
+        <html>
+            <head>
+                <title>Test Page</title>
+                <meta name="description" content="A test page">
+            </head>
+            <body>
+                <h1>Hello World</h1>
+                <p>This is a test page.</p>
+                <a href="/link">A link</a>
+            </body>
+        </html>
+        """
+
+        page_id = db_manager.save_page(
+            session_id,
+            website_id,
+            "http://example.com/test",
+            test_html,
+            http_status=200,
+            response_time_ms=150,
+        )
+
+        assert page_id > 0
+        assert db_manager.page_exists("http://example.com/test")
+
+        # Test updating an existing page
+        updated_html = "<html><body>Updated content</body></html>"
+        updated_page_id = db_manager.save_page(
+            session_id,
+            website_id,
+            "http://example.com/test",
+            updated_html,
+            http_status=200,
+            response_time_ms=100,
+        )
+
+        assert updated_page_id == page_id  # Should be the same page ID

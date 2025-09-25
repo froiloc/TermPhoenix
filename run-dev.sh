@@ -102,7 +102,7 @@ run_linting() {
     # Optional: type checking with mypy (if installed)
     if command -v mypy &> /dev/null; then
         print_status "Running type checks with mypy..."
-        mypy src/
+        python -m mypy
     fi
 }
 

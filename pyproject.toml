@@ -49,3 +49,21 @@ termphoenix = "termphoenix.main:main"
 [tool.black]
 line-length = 79
 target-version = ['py312']
+
+[tool.mypy]
+python_version = "3.12"
+#namespace_packages = false
+#follow_imports = "silent"
+#exclude = [".venv/", "venv/", "build/", "dist/"]
+# Specify the source directories to check
+python_executable = "/opt/TermPhoenix/venv/bin/python"
+
+# Use the module-based approach for checking, which is more reliable with your source structure
+modules = [
+    "termphoenix",
+    "tests"
+]
+
+[[tool.mypy.overrides]]
+module = "termphoenix.*"
+ignore_errors = false

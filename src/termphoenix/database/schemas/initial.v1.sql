@@ -30,6 +30,7 @@ CREATE TABLE crawl_sessions (
 
 CREATE TABLE pages (
     page_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id INTEGER NOT NULL,
     website_id INTEGER NOT NULL,
     url TEXT NOT NULL,
     url_hash TEXT UNIQUE NOT NULL,

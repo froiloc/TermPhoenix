@@ -248,6 +248,152 @@ class DatabaseManager:
             self.connection.rollback()
             raise DatabaseError(f"Failed to get or create website: {e}")
 
+    def save_page(
+        self,
+        session_id: int,
+        website_id: int,
+        url: str,
+        html_content: str,
+        http_status: int = 200,
+        response_time_ms: int = 0,
+    ) -> int:
+        """
+        Save a crawled page to the database.
+
+        Args:
+            session_id: ID of the crawl session
+            website_id: ID of the website
+            url: Page URL
+            html_content: Raw HTML content
+            http_status: HTTP status code
+            response_time_ms: Response time in milliseconds
+
+        Returns:
+            page_id of the saved page
+        """
+        try:
+            if self.connection is None:
+                raise RuntimeError("Database connection is not established")
+
+            cursor = self.connection.cursor()
+
+            # Check if page already exists
+            url_hash = self.url_to_hash(url)
+            cursor.execute(
+                "SELECT page_id FROM pages WHERE url_hash = ?", (url_hash,)
+            )
+            existing_page = cursor.fetchone()
+
+            if existing_page:
+                # Update existing page
+                page_id = existing_page[0]
+                cursor.execute(
+                    """
+                    UPDATE pages
+                    SET raw_html = ?, http_status = ?, response_time_ms = ?,
+                        last_crawled = datetime('now')
+                    WHERE page_id = ?
+                    """,
+                    (html_content, http_status, response_time_ms, page_id),
+                )
+            else:
+                # Insert new page
+                cursor.execute(
+                    """
+                    INSERT INTO pages
+                    (session_id, website_id, url, url_hash, raw_html,
+                        http_status, response_time_ms)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        session_id,
+                        website_id,
+                        url,
+                        url_hash,
+                        html_content,
+                        http_status,
+                        response_time_ms,
+                    ),
+                )
+                page_id = cursor.lastrowid
+
+                if page_id is None:
+                    raise DatabaseError(
+                        "Failed to get page ID after insertion"
+                    )
+
+            # Extract and save page metadata
+            self._save_page_metadata(page_id, html_content)
+
+            self.connection.commit()
+            logger.info(f"Saved page {page_id}: {url}")
+            return page_id
+
+        except Exception as e:
+            if self.connection is None:
+                raise RuntimeError("Database connection is not established")
+            self.connection.rollback()
+            raise DatabaseError(f"Failed to save page {url}: {e}")
+
+    def _save_page_metadata(self, page_id: int, html_content: str) -> None:
+        """
+        Extract and save metadata from HTML content.
+
+        Args:
+            page_id: ID of the page
+            html_content: Raw HTML content
+        """
+        try:
+            from src.termphoenix.parser.html_parser import HTMLParser
+
+            parser = HTMLParser()
+            soup = parser.parse_html(
+                html_content, "http://example.com"
+            )  # Base URL not critical for metadata
+
+            # Extract basic metadata
+            title = getattr(soup, "title", "")
+            meta_description = (
+                parser._extract_meta_description(soup)
+                if hasattr(parser, "_extract_meta_description")
+                else ""
+            )
+
+            # Count words and links
+            word_count = len(soup.tokens) if hasattr(soup, "tokens") else 0
+            link_count = len(soup.links) if hasattr(soup, "links") else 0
+
+            # Count emphasis tags (simplified)
+            emphasis_count = (
+                sum(1 for token in soup.tokens)
+                if hasattr(soup, "tokens")
+                else 0
+            )
+
+            cursor = self.connection.cursor()
+            cursor.execute(
+                """
+                INSERT OR REPLACE INTO page_metadata
+                (page_id, title, meta_description, word_count,
+                    link_count, emphasis_tag_count)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    page_id,
+                    str(title),
+                    meta_description,
+                    word_count,
+                    link_count,
+                    emphasis_count,
+                ),
+            )
+
+        except Exception as e:
+            logger.warning(
+                f"Failed to extract metadata for page {page_id}: {e}"
+            )
+            # Don't fail the entire page save if metadata extraction fails
+
     @staticmethod
     def url_to_hash(url: str) -> str:
         """
